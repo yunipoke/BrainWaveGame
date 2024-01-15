@@ -1,12 +1,52 @@
 import pygame
 from pygame.locals import *
 import time
+import socket
+import threading
+import queue
 import sys
 import os
+
+class Client:  # クライアント側(送信側の処理)
+
+    def __init__(self,q):
+        self.q = q
+
+    def c2s(self, ip, port, msg):  # サーバー側へ送信
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        serv_address = (ip, port)
+        s.sendto(msg.encode('utf-8'), serv_address)
+
+class Server():#サーバー側(受信側の処理)
+    def __init__(self,q):
+        self.q = q
+        self.host = "localhost"
+        self.port = 8080
+        self.bufsize = 1024
+
+        self.sock =  socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind((self.host, self.port))
+        self.thread = threading.Thread(target=self.c2s, daemon=True)
+        self.thread.start()
+
+    def c2s(self):#サーバー側へ受信
+        while True:
+            msg, cli_addr = self.sock.recvfrom(self.bufsize)
+            msg.decode('utf-8')
+            self.q.put(msg)
+            if msg == 'q':
+                break
+
 
 pygame.init() 
 (w, h) = (1200, 800)
 screen = pygame.display.set_mode((w, h))
+
+comm_queue = queue.Queue()
+server = Server(comm_queue)
+client = Client(comm_queue)
+target_ip = "localhost"
+target_port = "8080"
 
 Brain_img = pygame.image.load(os.path.join('data/images', 'brain.png')).convert_alpha() 
 Brain_img = pygame.transform.scale(Brain_img,(300,250))
@@ -108,11 +148,19 @@ def CountDown():
         pygame.display.update() 
         QuitStd()
 
-def GetFromMatlab(player_id):
-    #TODO 
-    #x = hoge
-    #return x
-    return 1
+def GetFromMatlab(player_id,alpha_queue):
+    alpha = 0
+    if player_id == 0:
+        #TODO
+         # alpha = function calling matlab
+         # alpha = '1'
+         # alpha = 1
+         # client.c2s(target_ip,target_port,alpha)
+    else:
+        if not comm_queue.empty():
+            alpha = comm_queue.get()
+
+    alpha_queue.put(alpha)
 
 def AccumulatePower():
 
@@ -130,6 +178,8 @@ def AccumulatePower():
         alpha_power[0] += 1
     alpha_power_width = w/10*2
 
+    alpha_queue = [queue.Queue()] * 2 
+
     pos_x = [0] * 2
     pos_y = [0] * 2
     pos_x[0] = w/4
@@ -140,6 +190,7 @@ def AccumulatePower():
     while True:
         screen.fill((255, 255, 255)) 
         pygame.time.wait(30)
+
 
         current_time = time.time()
         elapsed_time = current_time - start_time
@@ -152,8 +203,10 @@ def AccumulatePower():
         pygame.draw.rect(screen,(0,0,0),Rect(time_bar_leftedge + time_bar_width * (1 - ratio),time_bar_height,time_bar_width * ratio + 1,time_bar_height))
         
         for i in range(2):
-            diff = GetFromMatlab(i)
-            alpha_power[i] += diff
+            matlab_thread = threading.Thread(target = GetFromMatlab,args = (i,alpha_queue[i]),daemon = True)
+            matlab_thread.start()
+            if not alpha_queue[i].empty():
+                alpha_power[i] += alpha_queue[i].get()
 
             pygame.draw.rect(screen,(255 * (1 - i),0,255 * i),Rect(pos_x[i] - alpha_power_width / 2,pos_y[i] - alpha_power[i] - 10,alpha_power_width,alpha_power[i]))
         
