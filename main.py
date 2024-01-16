@@ -7,17 +7,17 @@ import queue
 import sys
 import os
 
-class Client:  # クライアント側(送信側の処理)
+class Client:  
 
     def __init__(self,q):
         self.q = q
 
-    def c2s(self, ip, port, msg):  # サーバー側へ送信
+    def c2s(self, ip, port, msg):  
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         serv_address = (ip, port)
         s.sendto(msg.encode('utf-8'), serv_address)
 
-class Server():#サーバー側(受信側の処理)
+class Server():
     def __init__(self,q):
         self.q = q
         self.host = "localhost"
@@ -29,14 +29,11 @@ class Server():#サーバー側(受信側の処理)
         self.thread = threading.Thread(target=self.c2s, daemon=True)
         self.thread.start()
 
-    def c2s(self):#サーバー側へ受信
+    def c2s(self):
         while True:
             msg, cli_addr = self.sock.recvfrom(self.bufsize)
-            msg.decode('utf-8')
+            msg = msg.decode('utf-8')
             self.q.put(msg)
-            if msg == 'q':
-                break
-
 
 pygame.init() 
 (w, h) = (1200, 800)
@@ -46,19 +43,33 @@ comm_queue = queue.Queue()
 server = Server(comm_queue)
 client = Client(comm_queue)
 target_ip = "localhost"
-target_port = "8080"
+target_port = 8080
 
 Brain_img = pygame.image.load(os.path.join('data/images', 'brain.png')).convert_alpha() 
 Brain_img = pygame.transform.scale(Brain_img,(300,250))
+Brain_Wave_img = pygame.image.load(os.path.join('data/images', 'brain_wave.png')).convert_alpha() 
+Brain_Wave_img = pygame.transform.scale(Brain_Wave_img,(400,400))
+Noukin_img = pygame.image.load(os.path.join('data/images', 'noukin.png')).convert_alpha() 
+Noukin_img = pygame.transform.scale(Noukin_img,(300,250))
+pygame.display.set_icon(Brain_img)
 
 game_name = '脳波ゲーム'
 pygame.display.set_caption(game_name)
 FONT = 'data/fonts/Arial'
+# FONT = 'data/fonts/HinaMincho-Regular.ttf'
 BLACK = (0,0,0)
+WHITE = (255,255,255)
+TURQUOISE = (0,206,175)
+BLEU_CLAIR = (0,229,195)
 
 initial = True
 game = False
 debug = False
+
+def Std():
+    # screen.fill((252,249,239))
+    screen.fill((252,237,248))
+    pygame.time.wait(30)
 
 def Quit():
     pygame.quit()
@@ -94,6 +105,8 @@ def DrawButton(msg,size,color,x,y,w,h,action = None):
 
     Text(msg,FONT,size,color,(x+(w/2)),(y+(h/2)))
 
+
+
 def GameStart():
     global initial
     global game
@@ -104,17 +117,16 @@ def Initial():
     global debug
     debug = False
     while initial:
-        # screen.fill((255, 255, 255)) 
-        screen.fill((50,255,200)) 
-        pygame.time.wait(30)
-
+        Std()
+        # screen.blit(Brain_img,(w/2 - 150,h/3 - 150))
+        screen.blit(Brain_Wave_img,(w/2 - 200,h/3 - 250))
         Text(game_name,FONT,100,BLACK,w/2,h/2)
         DrawButton("Start",20,BLACK,w/4,h/4*3,100,50,GameStart)
         DrawButton("Quit",20,BLACK,w - w/4,h/4*3,100,50,Quit)
-        screen.blit(Brain_img,(w/2 - 150,h/3 - 150))
 
         if(debug):
             Text('Debug mode',FONT,20,BLACK,w/2,h/4)
+
         pygame.display.update() 
 
         for event in pygame.event.get(): 
@@ -133,9 +145,7 @@ def CountDown():
     if debug:
         WaitingTime = 1
     while True:
-        screen.fill((255, 255, 255)) 
-        pygame.time.wait(30)
-
+        Std()
         current_time = time.time()
         elapsed_time = int(current_time - start_time)
         if WaitingTime - elapsed_time > 0:
@@ -151,14 +161,13 @@ def CountDown():
 def GetFromMatlab(player_id,alpha_queue):
     alpha = 0
     if player_id == 0:
-        #TODO
-         # alpha = function calling matlab
-         # alpha = '1'
-         # alpha = 1
-         # client.c2s(target_ip,target_port,alpha)
+         #alpha = eng.alpha1s()
+         alpha = 1
+         client.c2s(target_ip,target_port,str(alpha))
+         pass
     else:
         if not comm_queue.empty():
-            alpha = comm_queue.get()
+            alpha = float(comm_queue.get())
 
     alpha_queue.put(alpha)
 
@@ -173,9 +182,10 @@ def AccumulatePower():
     time_bar_height = h / 10
     time_bar_width = w/10*8
 
-    alpha_power = [0] * 2
+    alpha_power = [0.0] * 2
     if debug:
         alpha_power[0] += 1
+
     alpha_power_width = w/10*2
 
     alpha_queue = [queue.Queue()] * 2 
@@ -188,8 +198,7 @@ def AccumulatePower():
     pos_y[1] = h/8*7
 
     while True:
-        screen.fill((255, 255, 255)) 
-        pygame.time.wait(30)
+        Std()
 
 
         current_time = time.time()
@@ -198,6 +207,11 @@ def AccumulatePower():
 
         if ratio > 1:
             break
+
+        Text('Time',FONT,40,BLACK,w/20,h/20)
+        Text('α波をためろ!',FONT,70,BLACK,w/2,h/10*3)
+
+        screen.blit(Noukin_img,(w/2 - 150,h/2))
 
         pygame.draw.rect(screen,(0,255,0),Rect(time_bar_leftedge,time_bar_height,time_bar_width,time_bar_height))
         pygame.draw.rect(screen,(0,0,0),Rect(time_bar_leftedge + time_bar_width * (1 - ratio),time_bar_height,time_bar_width * ratio + 1,time_bar_height))
@@ -222,10 +236,9 @@ def DisplayResult(alpha_power):
     global game
     start_time = time.time()
     while True:
-        screen.fill((255,255,255))
-        pygame.time.wait(30)
+        Std()
 
-        Text('結果発表!',FONT,100,(255,0,0),w/2,h/5)
+        Text('結果発表!',FONT,100,BLACK,w/2,h/5)
 
         current_time = time.time()
         elapsed_time = current_time - start_time
@@ -242,11 +255,12 @@ def DisplayResult(alpha_power):
 
         if elapsed_time >= 7.5:
             if alpha_power[0] > alpha_power[1]:
-                Text('1P Win!! 君こそ脳波マスターだ!!!',FONT,60,(0,255,255),w/2,h/7*6)
+                # Text('1P Win!! 君こそ脳波マスターだ!!!',FONT,60,BLEU_CLAIR,w/2,h/7*6)
+                Text('Win!! おめでとう!君こそ脳波マスターだ!!!',FONT,60,BLEU_CLAIR,w/2,h/7*6)
             elif alpha_power[0] < alpha_power[1]:
-                Text('2P Win!! 君こそ脳波マスターだ!!!',FONT,60,(0,255,255),w/2,h/7*6)
+                Text('Lose...!!',FONT,60,BLEU_CLAIR,w/2,h/7*6)
             else:
-                Text('Draw!!',FONT,60,(0,255,255),w/2,h/7*6)
+                Text('Draw!!',FONT,60,BLEU_CLAIR,w/2,h/7*6)
 
         pygame.display.update() 
         for event in pygame.event.get(): 
@@ -270,8 +284,7 @@ def MainGame():
 
 def main():
     while(True):
-        screen.fill((255, 255, 255)) 
-        pygame.time.wait(30)
+        Std()
 
         while initial:
             Initial()
