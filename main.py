@@ -1,11 +1,16 @@
 import pygame
 from pygame.locals import *
+import matlab.engine
 import time
 import socket
 import threading
 import queue
 import sys
 import os
+
+sys.path.append('matlabroot/extern/engines/python/build/lib/')
+eng=matlab.engine.start_matlab()
+eng.addpath('C:/Users/mech-user/jisyupro/BrainWaveGame/data/matlab')
 
 class Client:  
 
@@ -37,7 +42,7 @@ class Server():
 
 pygame.init() 
 (w, h) = (1200, 800)
-screen = pygame.display.set_mode((w, h))
+screen = pygame.display.set_mode((w, h),FULLSCREEN)
 
 comm_queue = queue.Queue()
 server = Server(comm_queue)
@@ -106,7 +111,6 @@ def DrawButton(msg,size,color,x,y,w,h,action = None):
     Text(msg,FONT,size,color,(x+(w/2)),(y+(h/2)))
 
 
-
 def GameStart():
     global initial
     global game
@@ -161,8 +165,7 @@ def CountDown():
 def GetFromMatlab(player_id,alpha_queue):
     alpha = 0
     if player_id == 0:
-         #alpha = eng.alpha1s()
-         alpha = 1
+         alpha = eng.alpha1s()
          client.c2s(target_ip,target_port,str(alpha))
          pass
     else:
@@ -174,7 +177,7 @@ def GetFromMatlab(player_id,alpha_queue):
 def AccumulatePower():
 
     start_time = time.time()
-    time_limit = 10
+    time_limit = 20
     if debug:
         time_limit = 1
     time_bar_leftedge = w/10
@@ -197,12 +200,16 @@ def AccumulatePower():
     pos_y[0] = h/8*7
     pos_y[1] = h/8*7
 
+    amp_rate = 10 ** 7
+    prev_sec = 0
+
     while True:
         Std()
 
 
         current_time = time.time()
         elapsed_time = current_time - start_time
+        elapsed_sec = int(elapsed_time)
         ratio = elapsed_time / time_limit
 
         if ratio > 1:
@@ -217,15 +224,17 @@ def AccumulatePower():
         pygame.draw.rect(screen,(0,0,0),Rect(time_bar_leftedge + time_bar_width * (1 - ratio),time_bar_height,time_bar_width * ratio + 1,time_bar_height))
         
         for i in range(2):
-            matlab_thread = threading.Thread(target = GetFromMatlab,args = (i,alpha_queue[i]),daemon = True)
-            matlab_thread.start()
+            if elapsed_sec != prev_sec:
+                matlab_thread = threading.Thread(target = GetFromMatlab,args = (i,alpha_queue[i]),daemon = True)
+                matlab_thread.start()
             if not alpha_queue[i].empty():
-                alpha_power[i] += alpha_queue[i].get()
+                alpha_power[i] += alpha_queue[i].get() * amp_rate
 
-            pygame.draw.rect(screen,(255 * (1 - i),0,255 * i),Rect(pos_x[i] - alpha_power_width / 2,pos_y[i] - alpha_power[i] - 10,alpha_power_width,alpha_power[i]))
+            pygame.draw.rect(screen,(255 * (1 - i),0,255 * i),Rect(pos_x[i] - alpha_power_width / 2,pos_y[i] - alpha_power[i] * 0.5 - 10,alpha_power_width,alpha_power[i] * 0.5))
         
             Text(str(i + 1) + 'P\'s alpha power',FONT,20,(255 *(1 - i),0,255 * i),pos_x[i],pos_y[i])
 
+        prev_sec = elapsed_sec
         pygame.display.update() 
         QuitStd()
 
