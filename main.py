@@ -120,6 +120,7 @@ def GameStart():
 def Initial():
     global debug
     debug = False
+    comm_queue.queue.clear()
     while initial:
         Std()
         # screen.blit(Brain_img,(w/2 - 150,h/3 - 150))
